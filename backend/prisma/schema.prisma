@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  eventTypes    EventType[]    @relation("CreatedBy")
+  events        Event[]        @relation("TriggeredBy")
+  subscriptions Subscription[]
+  notifications Notification[]
+}
+
+model EventType {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String?
+  payloadSchema Json
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  createdBy     User           @relation("CreatedBy", fields: [createdById], references: [id])
+  events        Event[]
+  subscriptions Subscription[]
+}
+
+model Event {
+  id            String   @id @default(uuid())
+  eventTypeId   String
+  payload       Json
+  triggeredById String
+  triggeredAt   DateTime @default(now())
+
+  eventType     EventType      @relation(fields: [eventTypeId], references: [id])
+  triggeredBy   User           @relation("TriggeredBy", fields: [triggeredById], references: [id])
+  notifications Notification[]
+}
+
+model Subscription {
+  id          String   @id @default(uuid())
+  userId      String
+  eventTypeId String
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+  eventType EventType @relation(fields: [eventTypeId], references: [id])
+
+  @@unique([userId, eventTypeId])
+  @@index([userId])
+}
+
+model Notification {
+  id           String             @id @default(uuid())
+  eventId      String
+  userId       String
+  status       NotificationStatus @default(pending)
+  attempts     Int                @default(0)
+  readAt       DateTime?
+  dispatchedAt DateTime?
+  createdAt    DateTime           @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
